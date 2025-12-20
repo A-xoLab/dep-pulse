@@ -1,0 +1,280 @@
+{
+  "name": "dep-pulse",
+  "displayName": "DepPulse",
+  "description": "Real-time health and dependency analysis for your projects",
+  "version": "0.1.0",
+  "publisher": "axolab",
+  "license": "MIT",
+  "keywords": [
+    "dependencies",
+    "security",
+    "vulnerabilities",
+    "npm",
+    "pnpm",
+    "yarn",
+    "package manager",
+    "health",
+    "license",
+    "CVE",
+    "outdated",
+    "maintenance",
+    "OSV",
+    "GHSA"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/A-xoLab/dep-pulse.git"
+  },
+  "bugs": {
+    "url": "https://github.com/A-xoLab/dep-pulse/issues"
+  },
+  "homepage": "https://dep-pulse.vercel.app/",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:package.json"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "depPulse.scan",
+        "title": "DepPulse: Scan Dependencies"
+      },
+      {
+        "command": "depPulse.cleanupUnusedPackages",
+        "title": "DepPulse: Remove Unused Dependencies"
+      },
+      {
+        "command": "depPulse.showDashboard",
+        "title": "DepPulse: Show Dashboard"
+      },
+      {
+        "command": "depPulse.configure",
+        "title": "DepPulse: Configure Settings"
+      },
+      {
+        "command": "depPulse.configureSecrets",
+        "title": "DepPulse: Configure API Secrets"
+      }
+    ],
+    "configuration": {
+      "title": "DepPulse",
+      "properties": {
+        "depPulse.vulnerabilityDetection.primarySource": {
+          "type": "string",
+          "enum": [
+            "osv",
+            "github"
+          ],
+          "default": "osv",
+          "description": "Select Vulnerability Source. OSV.dev is free and has no rate limits. GitHub requires a token."
+        },
+        "depPulse.analysis.autoScanOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan dependencies when workspace opens"
+        },
+        "depPulse.analysis.enableCache": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable caching of analysis results to speed up subsequent scans"
+        },
+        "depPulse.analysis.strategy": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "native",
+            "static"
+          ],
+          "default": "auto",
+          "description": "Select the scanning strategy. 'auto' tries to use package manager CLI (npm/pnpm/yarn) for best accuracy and falls back to static parsing. 'native' forces CLI usage. 'static' forces file parsing."
+        },
+        "depPulse.analysis.includeTransitiveDependencies": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include transitive dependencies in analysis and dashboard. When disabled, DepPulse only analyzes direct dependencies and hides transitive-related insights."
+        },
+        "depPulse.analysis.scanOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan when dependency files are saved"
+        },
+        "depPulse.healthScore.weights.security": {
+          "type": "number",
+          "default": 0.4,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Weight for security in health score calculation (0-1)"
+        },
+        "depPulse.healthScore.weights.freshness": {
+          "type": "number",
+          "default": 0.3,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Weight for freshness in health score calculation (0-1)"
+        },
+        "depPulse.healthScore.weights.compatibility": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Weight for compatibility in health score calculation (0-1)"
+        },
+        "depPulse.healthScore.weights.license": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Weight for license compliance in health score calculation (0-1)"
+        },
+        "depPulse.licenses.acceptableLicenses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "MIT",
+            "ISC",
+            "Apache-2.0",
+            "BSD-2-Clause",
+            "BSD-3-Clause",
+            "CC0-1.0",
+            "Unlicense",
+            "WTFPL"
+          ],
+          "description": "List of acceptable SPDX license identifiers. Dependencies with licenses not in this list will be marked as incompatible. See https://spdx.org/licenses/ for valid identifiers."
+        },
+        "depPulse.licenses.strictMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, only permissive licenses are acceptable. If false, common copyleft licenses (LGPL, MPL) may also be acceptable based on your acceptableLicenses list."
+        },
+        "depPulse.licenses.projectLicense": {
+          "type": "string",
+          "default": "",
+          "description": "Your project's license (SPDX identifier). Used to check compatibility with dependencies. If not set, will attempt to read from package.json."
+        },
+        "depPulse.api.openRouterModel": {
+          "type": "string",
+          "default": "",
+          "description": "Model for OpenRouter alternatives (key is managed via DepPulse: Configure API Secrets)"
+        },
+        "depPulse.api.openaiModel": {
+          "type": "string",
+          "default": "",
+          "description": "Model for OpenAI alternatives (key is managed via DepPulse: Configure API Secrets)"
+        },
+        "depPulse.api.geminiModel": {
+          "type": "string",
+          "default": "",
+          "description": "Model for Gemini alternatives (key is managed via DepPulse: Configure API Secrets)"
+        },
+        "depPulse.cache.vulnerabilityTTLMinutes": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "maximum": 120,
+          "description": "Cache TTL for vulnerability data (all sources) in minutes"
+        },
+        "depPulse.cache.bypassCacheForCritical": {
+          "type": "boolean",
+          "default": true,
+          "description": "Bypass cache for critical and high severity vulnerabilities"
+        },
+        "depPulse.freshness.unmaintainedThresholdDays": {
+          "type": "number",
+          "default": 730,
+          "minimum": 365,
+          "maximum": 1095,
+          "description": "Number of days without updates before a package is considered unmaintained (default: 730 days / 2 years)"
+        },
+        "depPulse.freshness.majorVersionGracePeriodDays": {
+          "type": "number",
+          "default": 90,
+          "minimum": 0,
+          "maximum": 365,
+          "description": "Grace period in days before marking a package as outdated due to major version update (default: 90 days)"
+        },
+        "depPulse.analysis.chunkSize": {
+          "type": "number",
+          "default": 50,
+          "minimum": 10,
+          "maximum": 200,
+          "description": "Number of dependencies to process in each chunk for large projects. Smaller chunks use less memory but may be slower. Default: 50"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run build:css && pnpm run copy:assets && pnpm run esbuild:production",
+    "compile": "pnpm run esbuild:dev",
+    "esbuild:dev": "node esbuild.config.mjs",
+    "esbuild:production": "node esbuild.config.mjs --production",
+    "esbuild:watch": "node esbuild.config.mjs --watch",
+    "build:css": "tailwindcss -i ./resources/webview/input.css -o ./resources/webview/output.css --minify",
+    "copy:assets": "cp node_modules/chart.js/dist/chart.umd.min.js resources/webview/chart.js",
+    "watch": "pnpm run esbuild:watch",
+    "pretest": "pnpm run compile",
+    "test": "FAST_TESTS=true vitest --run --exclude '**/*.integration.test.ts' --exclude '**/*.contract.test.ts'",
+    "test:integration": "vitest --run src/api/OSVClient.integration.test.ts src/api/OSVClient.performance.integration.test.ts src/api/GitHubAdvisoryClient.integration.test.ts src/api/GitHubAdvisoryClient.performance.integration.test.ts src/analyzer/AnalysisEngine.integration.test.ts",
+    "test:contract": "vitest --run src/**/*.contract.test.ts",
+    "test:property": "vitest --run src/**/*.property.test.ts",
+    "test:all": "vitest --run",
+    "test:ci": "FAST_TESTS=true vitest --run --exclude '**/*.contract.test.ts'",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "FAST_TESTS=true vitest --run --coverage --exclude '**/*.integration.test.ts' --exclude '**/*.contract.test.ts'",
+    "lint": "biome lint src resources",
+    "lint:fix": "biome lint --write src resources",
+    "format": "biome format --write src resources",
+    "format:check": "biome format src resources",
+    "type-check": "tsc --noEmit",
+    "validate": "pnpm run format:check && pnpm run lint && pnpm run type-check",
+    "check": "biome check --write src",
+    "package": "vsce package --no-dependencies",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
+    ],
+    "*.{json,md}": [
+      "biome format --write --no-errors-on-unmatched --files-ignore-unknown=true"
+    ]
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.9",
+    "@commitlint/cli": "^20.2.0",
+    "@commitlint/config-conventional": "^20.2.0",
+    "@tailwindcss/cli": "^4.1.18",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^18.0.0",
+    "@types/semver": "^7.7.1",
+    "@types/vscode": "^1.80.0",
+    "@vitest/coverage-v8": "4.0.16",
+    "@vitest/ui": "^4.0.16",
+    "@vscode/vsce": "^3.7.1",
+    "chart.js": "^4.5.1",
+    "esbuild": "^0.27.2",
+    "fast-check": "^4.4.0",
+    "husky": "^9.1.7",
+    "jsdom": "^27.3.0",
+    "lint-staged": "^16.2.7",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.16"
+  },
+  "dependencies": {
+    "ae-cvss-calculator": "^1.0.9",
+    "axios": "^1.6.0",
+    "js-yaml": "^4.1.1",
+    "semver": "^7.5.0",
+    "stream-json": "^1.8.0"
+  }
+}

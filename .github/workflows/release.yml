@@ -1,0 +1,192 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+  # Manual trigger, always publishes a stable release using the version from package.json
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Compile TypeScript
+        run: pnpm run compile
+      
+      - name: Build CSS
+        run: pnpm run build:css
+      
+      - name: Copy assets
+        run: pnpm run copy:assets
+      
+      - name: Package extension
+        run: |
+          echo "📦 Packaging stable release (standard SemVer, no pre-release)..."
+          pnpm package
+      
+      - name: Find VSIX file
+        id: find-vsix
+        run: |
+          VSIX_FILE=$(ls dep-pulse-*.vsix | head -n 1)
+          echo "vsix_file=$VSIX_FILE" >> $GITHUB_OUTPUT
+          echo "Found VSIX file: $VSIX_FILE"
+      
+      - name: Publish to VS Code Marketplace
+        id: publish-vscode
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        continue-on-error: true
+        run: |
+          # Always publish as a stable release (no pre-release flag)
+          PUBLISH_CMD="npx @vscode/vsce publish --pat $VSCE_PAT --packagePath ${{ steps.find-vsix.outputs.vsix_file }} --no-dependencies"
+          echo "Publishing as stable release to VS Code Marketplace"
+          
+          if $PUBLISH_CMD 2>&1 | tee /tmp/vsce-output.log; then
+            # Check if output contains success indicators
+            if grep -qi "successfully\|published" /tmp/vsce-output.log && ! grep -qi "doesn't support prerelease\|Error:" /tmp/vsce-output.log; then
+              echo "✅ Successfully published to VS Code Marketplace"
+              echo "vscode_published=true" >> $GITHUB_OUTPUT
+            else
+              # Command returned 0 but has errors in output
+              if grep -qi "doesn't support prerelease" /tmp/vsce-output.log; then
+                echo "ℹ️  VS Code Marketplace doesn't support prerelease versions. Skipping Marketplace for beta release."
+                echo "Note: Use regular version (e.g., 0.1.0) and --pre-release flag for Marketplace pre-releases"
+                echo "vscode_published=skipped" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
+          else
+            EXIT_CODE=$?
+            if grep -qi "already exists" /tmp/vsce-output.log; then
+              echo "ℹ️  Version already exists in VS Code Marketplace (skipping)"
+              echo "vscode_published=skipped" >> $GITHUB_OUTPUT
+            elif grep -qi "doesn't support prerelease" /tmp/vsce-output.log; then
+              echo "ℹ️  VS Code Marketplace doesn't support prerelease versions. Skipping Marketplace for beta release."
+              echo "Note: Use regular version (e.g., 0.1.0) and --pre-release flag for Marketplace pre-releases"
+              echo "vscode_published=skipped" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              echo "❌ Failed to publish to VS Code Marketplace"
+              echo "vscode_published=false" >> $GITHUB_OUTPUT
+              exit $EXIT_CODE
+            fi
+          fi
+      
+      - name: Install ovsx
+        run: npm install -g ovsx
+      
+      - name: Publish to Open VSX
+        id: publish-ovsx
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        continue-on-error: true
+        run: |
+          # Retry logic for Open VSX publishing (network timeouts are common)
+          MAX_RETRIES=3
+          RETRY_DELAY=5
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_RETRIES ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Publishing to Open VSX (attempt $ATTEMPT/$MAX_RETRIES)..."
+            
+            # Capture both stdout and stderr
+            if ovsx publish ${{ steps.find-vsix.outputs.vsix_file }} --pat $OVSX_PAT 2>&1 | tee /tmp/ovsx-output.log; then
+              # Check if output contains success indicators
+              if grep -qi "successfully\|published" /tmp/ovsx-output.log && ! grep -qi "Unknown publisher\|error\|failed" /tmp/ovsx-output.log; then
+                echo "✅ Successfully published to Open VSX"
+                echo "ovsx_published=true" >> $GITHUB_OUTPUT
+                exit 0
+              else
+                # Command returned 0 but has errors in output
+                if grep -qi "Unknown publisher" /tmp/ovsx-output.log; then
+                  echo "❌ Unknown publisher namespace. Please create the namespace 'axolab' in Open VSX first."
+                  echo "See: https://github.com/eclipse/openvsx/wiki/Publishing-Extensions"
+                  echo "ovsx_published=false" >> $GITHUB_OUTPUT
+                  exit 1
+                fi
+              fi
+            else
+              EXIT_CODE=$?
+              # Check for specific error types
+              if grep -qi "already exists\|already published" /tmp/ovsx-output.log; then
+                echo "ℹ️  Version already exists in Open VSX (skipping)"
+                echo "ovsx_published=skipped" >> $GITHUB_OUTPUT
+                exit 0
+              elif grep -qi "Unknown publisher" /tmp/ovsx-output.log; then
+                echo "❌ Unknown publisher namespace. Please create the namespace 'axolab' in Open VSX first."
+                echo "See: https://github.com/eclipse/openvsx/wiki/Publishing-Extensions"
+                echo "ovsx_published=false" >> $GITHUB_OUTPUT
+                exit 1
+              elif [ $ATTEMPT -lt $MAX_RETRIES ]; then
+                echo "Publish failed, retrying in ${RETRY_DELAY}s..."
+                sleep $RETRY_DELAY
+                RETRY_DELAY=$((RETRY_DELAY * 2))  # Exponential backoff
+              else
+                echo "❌ Failed to publish to Open VSX after $MAX_RETRIES attempts"
+                echo "ovsx_published=false" >> $GITHUB_OUTPUT
+                exit $EXIT_CODE
+              fi
+            fi
+          done
+      
+      - name: Publish Summary
+        run: |
+          VSCODE_STATUS="${{ steps.publish-vscode.outputs.vscode_published }}"
+          OVSX_STATUS="${{ steps.publish-ovsx.outputs.ovsx_published }}"
+          
+          echo "## Publishing Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Marketplace | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$VSCODE_STATUS" = "true" ]; then
+            echo "| VS Code Marketplace | ✅ Published |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$VSCODE_STATUS" = "skipped" ]; then
+            echo "| VS Code Marketplace | ℹ️  Already Published |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| VS Code Marketplace | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$OVSX_STATUS" = "true" ]; then
+            echo "| Open VSX | ✅ Published |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$OVSX_STATUS" = "skipped" ]; then
+            echo "| Open VSX | ℹ️  Already Published |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Open VSX | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check if both are already published
+          if [ "$VSCODE_STATUS" = "skipped" ] && [ "$OVSX_STATUS" = "skipped" ]; then
+            echo "✅ **All marketplaces already have this version published**" >> $GITHUB_STEP_SUMMARY
+            echo "✅ All marketplaces already have this version published"
+          elif [ "$VSCODE_STATUS" = "true" ] && [ "$OVSX_STATUS" = "true" ]; then
+            echo "✅ **Successfully published to all marketplaces**" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Successfully published to all marketplaces"
+          elif [ "$VSCODE_STATUS" = "skipped" ] || [ "$OVSX_STATUS" = "skipped" ]; then
+            echo "ℹ️  **Some marketplaces already had this version, others were published**" >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️  Some marketplaces already had this version, others were published"
+          fi
+

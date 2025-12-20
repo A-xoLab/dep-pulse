@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+out/
+dist/
+*.vsix
+
+# IDE
+.vscode
+.vscode-test/
+.vscode-test-results/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.tem
+
+# Generated assets
+resources/webview/output.css
+resources/webview/chart.js
+
+# Others
+test-data/
+.DS_Store

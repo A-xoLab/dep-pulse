@@ -1,0 +1,2 @@
+# Validate commit message follows conventional commits
+pnpm commitlint --edit $1

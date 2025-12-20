@@ -1,0 +1,37 @@
+# Source files
+src/**
+tsconfig.json
+esbuild.config.mjs
+
+# Config files not needed in production
+biome.json
+commitlint.config.js
+.biomeignore
+vitest.config.mjs
+vitest.webview.config.ts
+.gitignore
+
+# Lock file (large, not needed)
+pnpm-lock.yaml
+
+# Development directories
+.vscode/**
+.vscode-test/**
+.github/**
+.husky/**
+scripts/**
+test-data/**
+coverage/**
+node_modules/**
+out/node_modules/**
+
+# Build artifacts
+**/*.map
+**/*.ts
+src/**/*.d.ts
+
+# Test files
+**/*.test.js
+**/*.integration.test.js
+**/*.property.test.js
+**/*.contract.test.js
