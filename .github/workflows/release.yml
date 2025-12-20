@@ -30,36 +30,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       
-      - name: Compile TypeScript
-        run: pnpm run compile
-      
-      - name: Build CSS
-        run: pnpm run build:css
-      
-      - name: Copy assets
-        run: pnpm run copy:assets
-      
-      - name: Package extension
-        run: |
-          echo "📦 Packaging stable release (standard SemVer, no pre-release)..."
-          pnpm package
-      
-      - name: Find VSIX file
-        id: find-vsix
-        run: |
-          VSIX_FILE=$(ls dep-pulse-*.vsix | head -n 1)
-          echo "vsix_file=$VSIX_FILE" >> $GITHUB_OUTPUT
-          echo "Found VSIX file: $VSIX_FILE"
-      
       - name: Publish to VS Code Marketplace
         id: publish-vscode
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         continue-on-error: true
         run: |
-          # Always publish as a stable release (no pre-release flag)
-          PUBLISH_CMD="npx @vscode/vsce publish --pat $VSCE_PAT --packagePath ${{ steps.find-vsix.outputs.vsix_file }} --no-dependencies"
-          echo "Publishing as stable release to VS Code Marketplace"
+          # Let vsce publish handle packaging and signing automatically
+          # The vscode:prepublish script will run automatically before packaging
+          PUBLISH_CMD="npx @vscode/vsce publish --pat $VSCE_PAT --no-dependencies"
+          echo "Publishing as stable release to VS Code Marketplace (with automatic signing)"
           
           if $PUBLISH_CMD 2>&1 | tee /tmp/vsce-output.log; then
             # Check if output contains success indicators
@@ -91,6 +71,18 @@ jobs:
               exit $EXIT_CODE
             fi
           fi
+      
+      - name: Find VSIX file for Open VSX
+        id: find-vsix
+        run: |
+          VSIX_FILE=$(ls dep-pulse-*.vsix 2>/dev/null | head -n 1)
+          if [ -z "$VSIX_FILE" ]; then
+            echo "⚠️  No VSIX file found. Packaging for Open VSX..."
+            pnpm package
+            VSIX_FILE=$(ls dep-pulse-*.vsix | head -n 1)
+          fi
+          echo "vsix_file=$VSIX_FILE" >> $GITHUB_OUTPUT
+          echo "Found VSIX file: $VSIX_FILE"
       
       - name: Install ovsx
         run: npm install -g ovsx
