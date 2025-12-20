@@ -2,7 +2,7 @@
   "name": "dep-pulse",
   "displayName": "DepPulse",
   "description": "Real-time health and dependency analysis for your projects",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "axolab",
   "license": "MIT",
   "keywords": [
@@ -238,6 +238,7 @@
     "validate": "pnpm run format:check && pnpm run lint && pnpm run type-check",
     "check": "biome check --write src",
     "package": "vsce package --no-dependencies",
+    "install:local": "pnpm run package && code --install-extension dep-pulse-*.vsix --force",
     "prepare": "husky"
   },
   "lint-staged": {
